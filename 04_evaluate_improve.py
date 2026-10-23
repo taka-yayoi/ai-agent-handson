@@ -239,30 +239,37 @@ result_v1.metrics  # 観点ごとの集計（正解した割合など）
 # MAGIC
 # MAGIC <div style="font-family:'Hiragino Sans','Meiryo',sans-serif;display:grid;grid-template-columns:1.2fr 0.3fr 1.4fr 0.3fr 1.2fr 0.3fr 1.2fr;gap:10px 6px;max-width:1150px;margin:8px 0;align-items:center"><div style="grid-column:1;grid-row:1;align-self:center"><div style="position:relative;border:3px solid #C9CED6;border-radius:12px;background:#F7F8FA;color:#8A929E;padding:12px 10px;text-align:center;font-size:20px;line-height:1.35"><div style="position:absolute;top:-14px;left:10px;background:#C9CED6;color:#fff;font-size:18px;font-weight:bold;padding:0 10px;border-radius:12px">1</div><div style="font-weight:bold">評価データ</div><div style="font-size:18px;margin-top:4px">質問と正解の組</div></div></div><div style="grid-column:2;grid-row:1;align-self:center"><div style="text-align:center;color:#8A929E;font-size:28px;line-height:1.1">→</div></div><div style="grid-column:3;grid-row:1;align-self:center"><div style="position:relative;border:3px solid #C9CED6;border-radius:12px;background:#F7F8FA;color:#8A929E;padding:12px 10px;text-align:center;font-size:20px;line-height:1.35"><div style="position:absolute;top:-14px;left:10px;background:#C9CED6;color:#fff;font-size:18px;font-weight:bold;padding:0 10px;border-radius:12px">2</div><div style="font-weight:bold">エージェントが答え、<br>LLM ジャッジが採点</div><div style="font-size:18px;margin-top:4px">Correctness など</div></div></div><div style="grid-column:4;grid-row:1;align-self:center"><div style="text-align:center;color:#8A929E;font-size:28px;line-height:1.1">→</div></div><div style="grid-column:5;grid-row:1;align-self:center"><div style="position:relative;border:3px solid #C9CED6;border-radius:12px;background:#F7F8FA;color:#8A929E;padding:12px 10px;text-align:center;font-size:20px;line-height:1.35"><div style="position:absolute;top:-14px;left:10px;background:#C9CED6;color:#fff;font-size:18px;font-weight:bold;padding:0 10px;border-radius:12px">3</div><div style="font-weight:bold">トレースで<br>原因を探す</div><div style="font-size:18px;margin-top:4px">点の低い質問</div></div></div><div style="grid-column:6;grid-row:1;align-self:center"><div style="text-align:center;color:#FF3621;font-size:28px;line-height:1.1">→</div></div><div style="grid-column:7;grid-row:1;align-self:center"><div style="position:relative;border:3px solid #FF3621;border-radius:12px;background:#FFF1EE;color:#1B1B1B;padding:12px 10px;text-align:center;font-size:20px;line-height:1.35"><div style="position:absolute;top:-14px;left:10px;background:#FF3621;color:#fff;font-size:18px;font-weight:bold;padding:0 10px;border-radius:12px">4</div><div style="font-weight:bold">1か所だけ直す</div><div style="font-size:18px;margin-top:4px">A または B</div></div></div><div style="grid-column:3 / 8;grid-row:2;align-self:start"><div style="border:3px solid #C9CED6;border-top:none;height:34px;border-radius:0 0 12px 12px;margin:0 60px"></div><div style="text-align:center;color:#8A929E;font-size:20px;font-weight:normal"><span style="background:#C9CED6;color:#fff;border-radius:12px;padding:0 10px;margin-right:6px">5</span>同じ評価データで、もう一度採点して比べる（2 に戻る）</div></div></div>
 # MAGIC
-# MAGIC 原因に合わせて、**次のどれか1つだけ**を変えます。2か所以上を同時に変えると、何が効いたのか分からなくなります。
+# MAGIC ここは、あなたが判断するところです。3. でトレースを見て分かった原因に合わせて、**次のどちらか1つだけ**を選びます。
+# MAGIC 2か所を同時に変えると、点が変わったときに、どちらが効いたのか分からなくなります。
 # MAGIC
 # MAGIC <div style="font-family:'Hiragino Sans','Meiryo',sans-serif;max-width:1150px;margin:18px 0 8px"><div style="font-size:20px;font-weight:bold;color:#1B1B1B;margin-bottom:8px">LLM を呼ぶたびに渡すもの</div><div style="display:grid;grid-template-columns:2fr 1fr;gap:12px;align-items:start"><div style="border:3px solid #FF3621;border-radius:12px;padding:10px 12px;background:#fff"><div style="font-size:20px;font-weight:bold;color:#1B1B1B">messages（会話の記録）</div><div style="border:2px solid #FF3621;background:#FFF1EE;color:#1B1B1B;border-radius:8px;padding:6px 12px;margin-top:8px;font-size:20px;text-align:left"><code style="font-weight:bold;margin-right:10px">system</code>役割とルール（システムプロンプト）<span style="background:#FF3621;color:#fff;border-radius:12px;padding:0 10px;margin-left:8px;font-size:18px;font-weight:bold">候補 B</span></div><div style="border:2px solid #C9CED6;background:#F7F8FA;color:#8A929E;border-radius:8px;padding:6px 12px;margin-top:8px;font-size:20px;text-align:left"><code style="font-weight:bold;margin-right:10px">user</code>利用者の質問</div></div><div style="position:relative;border:3px solid #FF3621;border-radius:12px;background:#FFF1EE;color:#1B1B1B;padding:12px 10px;text-align:center;font-size:20px;line-height:1.35"><div style="position:absolute;top:-14px;left:10px;background:#FF3621;color:#fff;font-size:18px;font-weight:bold;padding:0 10px;border-radius:12px">候補 A</div><div style="font-weight:bold">tools（ツールの説明）</div><div style="font-size:18px;margin-top:4px">get_menu の引数 weekday の説明</div></div></div><div style="border:3px solid #FF3621;border-top:none;height:18px;border-radius:0 0 12px 12px;margin:4px 12% 0"></div><div style="text-align:center;color:#FF3621;font-size:28px;line-height:1.1">↓<div style="font-size:18px">messages と tools を渡す</div></div><div style="width:30%;margin:6px auto 0"><div style="position:relative;border:3px solid #C9CED6;border-radius:12px;background:#F7F8FA;color:#8A929E;padding:12px 10px;text-align:center;font-size:20px;line-height:1.35"><div style="font-weight:bold">LLM</div><div style="font-size:18px;margin-top:4px">何をするか決める</div></div></div></div>
 # MAGIC
-# MAGIC | 候補 | 変えるもの |
-# MAGIC |---|---|
-# MAGIC | A | `get_menu` の引数 `weekday` の説明（下のセル） |
-# MAGIC | B | システムプロンプト（`SYSTEM_PROMPT_V2`） |
+# MAGIC | 候補 | 変えるもの | こういう原因なら |
+# MAGIC |---|---|---|
+# MAGIC | A | `get_menu` の引数 `weekday` の説明 | `get_menu` に「月曜日」のような1文字でない曜日が渡され、「該当するデータはありません」が返っている |
+# MAGIC | B | システムプロンプト | 「今日」「明日」の質問で `get_today` を呼ばずに曜日を推測している、またはツールの結果と違うことを答えている |
 # MAGIC
-# MAGIC 使わないほうのセルは実行しないでください。
+# MAGIC 下のセルの `CHOICE` に `"A"` か `"B"` を書いてから実行してください。書かずに実行すると、エラーで止まります（「すべてを実行」でここまで来た場合も、ここで止まります）。
 
 # COMMAND ----------
 
-# 候補 A：get_menu の引数の説明を変える
-register_get_menu("曜日を1文字で。月, 火, 水, 木, 金, 土, 日 のいずれか")
-SYSTEM_PROMPT_V2 = SYSTEM_PROMPT  # システムプロンプトは変えない
+# 3. で見つけた原因に合うほうを、"A" か "B" で書く
+CHOICE = ""
 
-# COMMAND ----------
-
-# 候補 B：システムプロンプトを変える（A を実行した場合は、このセルは実行しない）
-# ツールの説明は変えない
-SYSTEM_PROMPT_V2 = """あなたはひかり食堂の案内係です。
+if CHOICE == "A":
+    # 候補 A：get_menu の引数の説明を変える。システムプロンプトは変えない
+    register_get_menu("曜日を1文字で。月, 火, 水, 木, 金, 土, 日 のいずれか")
+    SYSTEM_PROMPT_V2 = SYSTEM_PROMPT
+elif CHOICE == "B":
+    # 候補 B：システムプロンプトを変える。ツールの説明は直す前（v1）のまま
+    register_get_menu("曜日")  # 先に A を試していた場合に備えて、v1 の状態に戻す
+    SYSTEM_PROMPT_V2 = """あなたはひかり食堂の案内係です。
 - 日付や曜日が関係する質問では、必ず最初に get_today で今日を確かめてください。
 - メニューはツールの結果だけを使って答え、推測で答えないでください。"""
+else:
+    raise ValueError('CHOICE に "A" か "B" を書いてから、もう一度実行してください（3. で見つけた原因に合うほう）')
+
+print(f"候補 {CHOICE} で直しました")
 
 # COMMAND ----------
 
@@ -274,18 +281,18 @@ SYSTEM_PROMPT_V2 = """あなたはひかり食堂の案内係です。
 # COMMAND ----------
 
 def predict_fn_v2(question):
-    """直した後のエージェントで回答する（A の場合はツールの説明が、B の場合はシステムプロンプトが変わっている）"""
+    """直した後のエージェントで回答する（候補 A ならツールの説明が、候補 B ならシステムプロンプトが変わっている）"""
     return run_agent(question, system_prompt=SYSTEM_PROMPT_V2, verbose=False)
 
 
-# 評価データとスコアラーは v1 と同じものを使う。変えたのは predict_fn だけ
-with mlflow.start_run(run_name="v2：直した後"):
+# 評価データとスコアラーは v1 と同じものを使う。違うのは、4. で直した1か所だけ
+with mlflow.start_run(run_name=f"v2：直した後（候補 {CHOICE}）"):
     result_v2 = mlflow.genai.evaluate(data=data, predict_fn=predict_fn_v2, scorers=scorers)
 
 import pandas as pd
 
 # v1 と v2 の集計を横に並べて比べる
-pd.DataFrame({"v1：直す前": result_v1.metrics, "v2：直した後": result_v2.metrics})
+pd.DataFrame({"v1：直す前": result_v1.metrics, f"v2：直した後（候補 {CHOICE}）": result_v2.metrics})
 
 # COMMAND ----------
 
