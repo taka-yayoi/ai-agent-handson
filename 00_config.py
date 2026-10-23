@@ -9,11 +9,11 @@
 
 # COMMAND ----------
 
-import json
-from datetime import datetime, timedelta, timezone
+import json  # LLM とのやり取りで使う JSON 形式の文字列を、Python のデータに変換する
+from datetime import datetime, timedelta, timezone  # 今日の日付と曜日を求める
 
-from databricks.sdk import WorkspaceClient
-from databricks_openai import DatabricksOpenAI
+from databricks.sdk import WorkspaceClient  # Databricks の機能（Unity Catalog など）を Python から操作する
+from databricks_openai import DatabricksOpenAI  # Databricks の LLM を、OpenAI と同じ書き方で呼び出す
 
 # 使う LLM（Databricks が提供している基盤モデル）
 MODEL = "databricks-qwen3-next-80b-a3b-instruct"
@@ -23,6 +23,7 @@ CATALOG = "workspace"
 SCHEMA = "agent_handson"
 MENU_TABLE = f"{CATALOG}.{SCHEMA}.menu"
 
+# スキーマ（テーブルや関数を入れるフォルダのようなもの）を作る。すでにあれば何もしない
 spark.sql(f"CREATE SCHEMA IF NOT EXISTS {CATALOG}.{SCHEMA}")
 
 # LLM を呼び出すためのクライアント（OpenAI と同じ書き方で呼べる）
@@ -31,6 +32,7 @@ client = DatabricksOpenAI()
 # COMMAND ----------
 
 # 架空の学食「ひかり食堂」のメニュー。土日は休業
+# 1行が (曜日, 種類, 料理名, 値段) の組
 MENU = [
     ("月", "日替わり定食", "鶏の唐揚げ定食", 520),
     ("月", "麺", "醤油ラーメン", 450),
@@ -54,9 +56,10 @@ MENU = [
     ("金", "デザート", "わらび餅", 170),
 ]
 
+# メニュー表がまだなければ、上のリストからテーブルを作る（2回目以降は作り直さない）
 if not spark.catalog.tableExists(MENU_TABLE):
-    (spark.createDataFrame(MENU, "weekday STRING, category STRING, item STRING, price INT")
-        .write.saveAsTable(MENU_TABLE))
+    (spark.createDataFrame(MENU, "weekday STRING, category STRING, item STRING, price INT")  # 列の名前と型
+        .write.saveAsTable(MENU_TABLE))  # Unity Catalog にテーブルとして保存する
 
 print(f"LLM: {MODEL}")
 print(f"メニュー表: {MENU_TABLE}")

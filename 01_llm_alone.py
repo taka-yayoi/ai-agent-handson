@@ -27,9 +27,10 @@
 def ask(prompt):
     """LLM に1回だけ質問して、答えの文章を返す"""
     resp = client.chat.completions.create(
-        model=MODEL,
-        messages=[{"role": "user", "content": prompt}],
+        model=MODEL,  # 使う LLM（00_config で決めたもの）
+        messages=[{"role": "user", "content": prompt}],  # 会話の記録。ここでは利用者の質問が1つだけ
     )
+    # LLM の返事は choices の中に入っている。その1つ目の、文章の部分を取り出す
     return resp.choices[0].message.content
 
 
@@ -49,13 +50,16 @@ print(ask("ひかり食堂の、今日の日替わり定食は何ですか？"))
 
 # COMMAND ----------
 
+# 人が調べる①：今日の日付と曜日
 now = datetime.now(timezone(timedelta(hours=9)))  # 日本時間
-weekday = "月火水木金土日"[now.weekday()]
+weekday = "月火水木金土日"[now.weekday()]  # weekday() は月曜=0 〜 日曜=6 を返すので、曜日の文字に置き換える
 today = f"{now:%Y-%m-%d}（{weekday}）"
 
+# 人が調べる②：今日のメニュー（メニュー表から、今日の曜日の行だけを取り出す）
 rows = spark.sql(f"SELECT category, item, price FROM {MENU_TABLE} WHERE weekday = '{weekday}'").collect()
-menu_today = "\n".join(f"{r.category}：{r.item} {r.price}円" for r in rows) or "休業日"
+menu_today = "\n".join(f"{r.category}：{r.item} {r.price}円" for r in rows) or "休業日"  # 行がなければ休業日
 
+# 調べた結果を、質問の前に貼り付ける
 prompt = f"""次の情報だけを使って答えてください。
 
 # 今日の日付
@@ -67,9 +71,9 @@ prompt = f"""次の情報だけを使って答えてください。
 # 質問
 ひかり食堂の、今日の日替わり定食は何ですか？"""
 
-print(prompt)
+print(prompt)  # LLM に渡すプロンプトの全文
 print("=" * 60)
-print(ask(prompt))
+print(ask(prompt))  # LLM の答え
 
 # COMMAND ----------
 
