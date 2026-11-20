@@ -440,11 +440,12 @@ result_v1.metrics
 
 import copy
 
-# 直す前のものをそのまま写す。このあとに、直したいところだけを書き換える
+# v2 用に、v1 のツールとシステムプロンプトをコピーする。v1（TOOLS と SYSTEM_PROMPT）は比べるためにそのまま残す
+# このあと、TOOLS_V2 か SYSTEM_PROMPT_V2 の、どちらか一方だけを書き換える
 TOOLS_V2 = copy.deepcopy(TOOLS)
 SYSTEM_PROMPT_V2 = SYSTEM_PROMPT
 
-# 例：1つ目のツールの、引数の説明を変える（例の題材で「12月4日」の質問が失敗した場合）
+# 例の題材の直し方：日付で探すツール（find_events_by_date）の引数の説明を、データの日付の形に合わせる
 # TOOLS_V2[0]["arg_description"] = "日付。2026-12-04 の形で、年・月・日を - でつなぐ"
 
 
