@@ -57,8 +57,6 @@
 
 # COMMAND ----------
 
-THEME = "みどり大学の学内イベント案内"
-
 DATA = """
 日付,開始時刻,イベント名,場所
 11/26,12:30,昼休みミニコンサート,学生会館ホール
@@ -109,6 +107,8 @@ for line in LINES:
 # MAGIC
 # MAGIC このノートブックのツールは、「データの中から、言葉を含む行を探す」`search_data` の1つだけです。中身は用意してあるので、書くのは **ツールの説明** だけです。
 # MAGIC
+# MAGIC 下のセルの `" "` の中の文章を書き換えます。
+# MAGIC
 # MAGIC LLM はデータそのものを見ていません。LLM がデータについて知る手がかりは、このツールの説明だけです。LLM は説明を読んで、ツールを使うかどうかと、どんな言葉を渡すかを決めます。データに何が入っているかを、1〜2文で書きます。
 # MAGIC
 # MAGIC ツールはもう1つ、今日の日付と曜日を返す `get_today` を持たせてあります。
@@ -151,11 +151,11 @@ print(search_data("図書館"))
 # MAGIC %md
 # MAGIC ## 3. システムプロンプトを書く【書き換える】
 # MAGIC
-# MAGIC エージェントの役割を、LLM に伝える文章です。最初は1〜2文でかまいません。
+# MAGIC エージェントの役割を、LLM に伝える文章です。下のセルの `" "` の中の文章を書き換えます。最初は1〜2文でかまいません。
 
 # COMMAND ----------
 
-SYSTEM_PROMPT = f"あなたは{THEME}の案内係です。必要に応じてツールを使って答えてください。"
+SYSTEM_PROMPT = "あなたは、みどり大学の学内イベントの案内係です。必要に応じてツールを使って答えてください。"
 
 # COMMAND ----------
 
@@ -211,7 +211,7 @@ def run_agent(question, max_steps=8, verbose=True):
 # MAGIC %md
 # MAGIC ## 4. 質問して、トレースで確かめる【書き換える】
 # MAGIC
-# MAGIC 自分の題材で、エージェントに聞いてみたい質問を書きます。ツールを2回以上使う質問を、1つは入れてください。
+# MAGIC 自分の題材で、エージェントに聞いてみたい質問を、下のセルに1行に1つずつ書きます。ツールを2回以上使う質問を、1つは入れてください。
 # MAGIC
 # MAGIC 実行すると、質問ごとにトレースが表示されます。トレースは、エージェントの中で起きたことを順番に記録したものです。左の一覧で `ツール：search_data` を選ぶと、右に入力（LLM が渡した言葉）と出力（ツールが返した結果）が出ます。
 # MAGIC
@@ -229,13 +229,14 @@ def run_agent(question, max_steps=8, verbose=True):
 
 # COMMAND ----------
 
-QUESTIONS = [
-    "今日はどんなイベントがある？",
-    "明日、図書館で何かある？",
-    "古本市はいつ？",
-]
+# 1行に1つ、質問を書く
+QUESTIONS = """
+今日はどんなイベントがある？
+明日、図書館で何かある？
+古本市はいつ？
+"""
 
-for q in QUESTIONS:
+for q in [line.strip() for line in QUESTIONS.strip().splitlines() if line.strip()]:
     print(f"Q：{q}")
     print(f"A：{run_agent(q)}\n")
 
@@ -252,32 +253,38 @@ for q in QUESTIONS:
 # MAGIC %md
 # MAGIC ## 5. 評価データを書く【書き換える】
 # MAGIC
-# MAGIC 質問と、期待する答え（正解）の組を5〜10問書きます。04 と同じ形です。
+# MAGIC 質問と、期待する答え（正解）を5〜10組書きます。1. のデータと同じく、1行に1組をカンマで区切って書きます。
 # MAGIC
 # MAGIC - 正解は、データを見て自分で書きます
 # MAGIC - 4. で試した質問のほかに、書き方を変えた質問も入れます（例：「12/4」と「12月4日」）
 # MAGIC - 「今日」「明日」を含む質問は、実行する日によって正解が変わるので、入れません
 # MAGIC
-# MAGIC 書き終えたら、`READY = True` に変えてから実行します。
+# MAGIC 書き終えたら、セルの1行目の `READY = False` を `READY = True` に書き換えてから実行します。
 
 # COMMAND ----------
 
 READY = False
 
-EVAL_DATA = [
-    ("12月4日はどんなイベントがある？", "写真部 作品展（14:00、図書館 1F ギャラリー）"),
-    ("12月17日の昼休みには何がある？", "昼休みミニコンサート（12:30、学生会館ホール）"),
-    ("図書館で開かれるイベントは？", "古本市（11月30日と12月18日、図書館前広場）と、写真部 作品展（12月4日、図書館 1F ギャラリー）"),
-    ("プログラミング勉強会はどこで開かれる？", "情報棟 301"),
-    ("12月25日にイベントはある？", "ない"),
-]
+# 1行目は見出し。2行目から、質問と正解をカンマで区切って書く（1. のデータと同じ書き方）
+EVAL_DATA = """
+質問,正解
+12月4日はどんなイベントがある？,写真部 作品展（14:00、図書館 1F ギャラリー）
+12月17日の昼休みには何がある？,昼休みミニコンサート（12:30、学生会館ホール）
+図書館で開かれるイベントは？,古本市（11月30日と12月18日、図書館前広場）と、写真部 作品展（12月4日、図書館 1F ギャラリー）
+プログラミング勉強会はどこで開かれる？,情報棟 301
+12月25日にイベントはある？,ない
+"""
 
 if not READY:
     raise ValueError("評価データを自分の題材に書き換えてから、READY = True にして実行してください")
 
-# MLflow の評価で使う形にする（04 と同じ）
-data = [{"inputs": {"question": q}, "expectations": {"expected_response": a}} for q, a in EVAL_DATA]
-for q, a in EVAL_DATA:
+# 書いた評価データを読み込み、MLflow の評価で使う形にする
+pairs = [[v.strip() for v in r] for r in csv.reader(io.StringIO(EVAL_DATA.strip())) if any(v.strip() for v in r)][1:]
+for i, r in enumerate(pairs, start=2):
+    if len(r) != 2:
+        raise ValueError(f"{i}行目は、質問と正解の2つをカンマで区切って書いてください（正解の中では、半角のカンマを使わない）：{r}")
+data = [{"inputs": {"question": q}, "expectations": {"expected_response": a}} for q, a in pairs]
+for q, a in pairs:
     print(q, "→", a)
 
 # COMMAND ----------
@@ -321,7 +328,7 @@ result_v1.metrics
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 7. 原因を調べて、1か所だけ直す
+# MAGIC ## 7. 原因を調べて、1か所だけ直す【書き換える】
 # MAGIC
 # MAGIC 上のセルの出力にある評価結果のリンクを開き、`Correctness` が「Fail」の質問のトレースを開きます。
 # MAGIC トレースを次の表の上から順に見て、**最初に当てはまったところ** を直します。直すのは1か所だけです。2か所を同時に変えると、どちらが効いたのか分からなくなります。
@@ -332,23 +339,21 @@ result_v1.metrics
 # MAGIC | ② | ツールに渡した言葉は、データの書き方と合っているか | 合っていない（例：データは「12/04」なのに「12月4日」が渡されている） | 2. のツールの説明に、データの書き方を書き足す |
 # MAGIC | ③ | LLM は、ツールの結果どおりに答えたか | 結果にないことを答えている | 3. のシステムプロンプトに「ツールの結果だけを使って答える」と書き足す |
 # MAGIC
-# MAGIC 直し方：
+# MAGIC 下のセルの、当てはまったほうの `""` の中に、書き足す文章を書いて実行します。もう一方は `""` のままにします。
 # MAGIC
-# MAGIC 1. 2. の `TOOL_DESCRIPTION` か 3. の `SYSTEM_PROMPT` の、どちらか1つを書き換えて、そのセルを実行し直す
-# MAGIC 2. 下のセルを実行して、直したのが1か所だけかを確かめる
-# MAGIC
-# MAGIC 例の題材では ② に当てはまります。2. の `TOOL_DESCRIPTION` の最後に「日付は 12/04 のように、月と日を2桁の数字にして / でつないで書いています。」を書き足します。
+# MAGIC 例の題材では ② に当てはまるので、ツールの説明のほうに「日付は 12/04 のように、月と日を2桁の数字にして / でつないで書いています。」と書きます。
 
 # COMMAND ----------
 
-changed_tool = TOOL_DESCRIPTION != TOOL_DESCRIPTION_V1
-changed_prompt = SYSTEM_PROMPT != SYSTEM_PROMPT_V1
-if changed_tool and changed_prompt:
-    raise ValueError("ツールの説明とシステムプロンプトの両方が変わっています。どちらか1つだけにしてください")
-if not (changed_tool or changed_prompt):
-    raise ValueError("まだ何も直していません。2. のツールの説明か 3. のシステムプロンプトを書き換えて、そのセルを実行し直してください")
+# ② に当てはまったら：ツールの説明に書き足す文章を、"" の中に書く
+ADD_TO_TOOL_DESCRIPTION = ""
 
-print("直したもの：", "ツールの説明" if changed_tool else "システムプロンプト")
+# ① か ③ に当てはまったら：システムプロンプトに書き足す文章を、"" の中に書く
+ADD_TO_SYSTEM_PROMPT = ""
+
+# 直す前（v1）の文章の後ろに書き足す
+TOOL_DESCRIPTION = TOOL_DESCRIPTION_V1 + ADD_TO_TOOL_DESCRIPTION
+SYSTEM_PROMPT = SYSTEM_PROMPT_V1 + ADD_TO_SYSTEM_PROMPT
 
 # COMMAND ----------
 
@@ -362,6 +367,15 @@ print("直したもの：", "ツールの説明" if changed_tool else "システ
 # COMMAND ----------
 
 import pandas as pd
+
+# 直したのが1か所だけかを確かめる（直し忘れや、両方を直した場合はここで止まる）
+changed_tool = TOOL_DESCRIPTION != TOOL_DESCRIPTION_V1
+changed_prompt = SYSTEM_PROMPT != SYSTEM_PROMPT_V1
+if changed_tool and changed_prompt:
+    raise ValueError("7. のセルで、2つの \"\" の両方に書いています。どちらか1つだけにしてください")
+if not (changed_tool or changed_prompt):
+    raise ValueError("まだ何も直していません。7. のセルの \"\" の中に、書き足す文章を書いて実行してください")
+print("直したもの：", "ツールの説明" if changed_tool else "システムプロンプト")
 
 # 直したツールの説明かシステムプロンプトで、6. と同じ評価をする
 with mlflow.start_run(run_name="v2：直した後"):
