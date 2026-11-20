@@ -164,8 +164,10 @@ SYSTEM_PROMPT = "あなたは、みどり大学の学内イベントの案内係
 
 # COMMAND ----------
 
+import logging
 import mlflow
 
+logging.getLogger("mlflow").setLevel(logging.ERROR)  # 学習に関係しない MLflow の警告を表示しない
 mlflow.openai.autolog()  # LLM の呼び出しを自動で記録する
 
 
@@ -213,7 +215,7 @@ def run_agent(question, max_steps=8, verbose=True):
 # MAGIC
 # MAGIC 自分の題材で、エージェントに聞いてみたい質問を、下のセルに1行に1つずつ書きます。ツールを2回以上使う質問を、1つは入れてください。
 # MAGIC
-# MAGIC 実行すると、質問ごとにトレースが表示されます。トレースは、エージェントの中で起きたことを順番に記録したものです。左の一覧で `ツール：search_data` を選ぶと、右に入力（LLM が渡した言葉）と出力（ツールが返した結果）が出ます。
+# MAGIC 実行すると、質問ごとにトレースが表示されます。トレースは、エージェントの中で起きたことを順番に記録したものです。左の「Trace breakdown」で `ツール：search_data` を選ぶと、右の「Inputs / Outputs」に、入力（LLM が渡した言葉）と出力（ツールが返した結果）が出ます。
 # MAGIC
 # MAGIC 答えがおかしかったら、トレースを次の順に見ます（第2回の 7. でも同じ順で見ます）。
 # MAGIC
@@ -330,7 +332,7 @@ result_v1.metrics
 # MAGIC %md
 # MAGIC ## 7. 原因を調べて、1か所だけ直す【書き換える】
 # MAGIC
-# MAGIC 上のセルの出力にある評価結果のリンクを開き、`Correctness` が「Fail」の質問のトレースを開きます。
+# MAGIC 上のセルの出力にある「View evaluation results in MLflow」を押して評価結果を開き、`Correctness` が「Fail」の質問のトレースを開きます。
 # MAGIC トレースを次の表の上から順に見て、**最初に当てはまったところ** を直します。直すのは1か所だけです。2か所を同時に変えると、どちらが効いたのか分からなくなります。
 # MAGIC
 # MAGIC | 順番 | トレースで見ること | こうなっていたら | 直すもの |
@@ -362,7 +364,7 @@ SYSTEM_PROMPT = SYSTEM_PROMPT_V1 + ADD_TO_SYSTEM_PROMPT
 # MAGIC
 # MAGIC 評価データと採点の観点は、6. と同じです。違うのは、7. で直した1か所だけです。
 # MAGIC
-# MAGIC 質問ごとの結果は、v1 と v2 の評価結果のリンクをそれぞれ開いて見比べます。直したかった質問が、v2 で「Pass」になったかを確かめてください。
+# MAGIC 質問ごとの結果は、6. と 8. の「View evaluation results in MLflow」をそれぞれ開いて見比べます。直したかった質問が、v2 で「Pass」になったかを確かめてください。
 
 # COMMAND ----------
 
