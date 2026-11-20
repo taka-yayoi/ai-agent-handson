@@ -82,14 +82,12 @@ DATA = """
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC 下のセルで、データをテーブルにします。読み飛ばしてかまいません。
+# MAGIC 下のセルで、書いたデータを読み込みます。読み飛ばしてかまいません。
 
 # COMMAND ----------
 
 import csv
 import io
-
-MY_TABLE = f"{CATALOG}.{SCHEMA}.my_data"  # 自分のデータを入れるテーブル
 
 rows = [[v.strip() for v in r] for r in csv.reader(io.StringIO(DATA.strip())) if any(v.strip() for v in r)]
 HEADERS, BODY = rows[0], rows[1:]
@@ -99,12 +97,10 @@ for i, r in enumerate(BODY, start=2):
     if len(r) != len(HEADERS):
         raise ValueError(f"{i}行目の値の数が {len(r)} 個です。見出しと同じ {len(HEADERS)} 個にしてください：{r}")
 
-# 列の名前は c1, c2, … とし、見出しは 2. のツールが返す文字列の中で使う
-COLS = [f"c{i}" for i in range(1, len(HEADERS) + 1)]
-(spark.createDataFrame(BODY, ", ".join(f"{c} STRING" for c in COLS))
-    .write.mode("overwrite").option("overwriteSchema", "true").saveAsTable(MY_TABLE))
-
-display(spark.table(MY_TABLE).toDF(*HEADERS))
+# データの1行を、見出しを付けた1つの文章にしておく。例：「日付：12/04、開始時刻：14:00、イベント名：写真部 作品展、場所：図書館 1F ギャラリー」
+LINES = ["、".join(f"{h}：{v}" for h, v in zip(HEADERS, r)) for r in BODY]
+for line in LINES:
+    print(line)
 
 # COMMAND ----------
 
@@ -115,8 +111,6 @@ display(spark.table(MY_TABLE).toDF(*HEADERS))
 # MAGIC
 # MAGIC LLM はデータそのものを見ていません。LLM がデータについて知る手がかりは、このツールの説明だけです。LLM は説明を読んで、ツールを使うかどうかと、どんな言葉を渡すかを決めます。データに何が入っているかを、1〜2文で書きます。
 # MAGIC
-# MAGIC ここに書いた文章は、Unity Catalog に登録する関数 `search_data` の説明（COMMENT）になり、エージェントを動かすたびに LLM に渡されます。
-# MAGIC
 # MAGIC ツールはもう1つ、今日の日付と曜日を返す `get_today` を持たせてあります。
 
 # COMMAND ----------
@@ -126,89 +120,31 @@ TOOL_DESCRIPTION = "みどり大学の学内イベントの一覧から、指定
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC 下のセルで、ツールを Unity Catalog に登録します。読み飛ばしてかまいません。登録した結果は、左のメニューの **カタログ** → **workspace** → **agent_handson** → **機能** → **search_data** で見られます。「説明」の欄に、上の `TOOL_DESCRIPTION` の文章が入っています。
+# MAGIC 下のセルで、2つのツールを用意します。中身は短いので、読んでおくとトレースが読みやすくなります。
+# MAGIC
+# MAGIC このノートブックでは、仕組みに集中するため、ツールをノートブックの中の Python の関数にしています。本番で使うエージェントでは、ツールを Unity Catalog に登録し、誰が使えるかを権限で管理します。
 
 # COMMAND ----------
 
-import mlflow
-
-w = WorkspaceClient()  # Unity Catalog に登録した関数の情報を読み出すために使う
-TOOL_NAMES = ["get_today", "search_data"]
-
-
-def sql_text(s):
-    """SQL の文字列の中に入れられるように、引用符（'）とバックスラッシュの前にバックスラッシュを付ける"""
-    return str(s).replace("\\", "\\\\").replace("'", "\\'")
-
-
-def register_get_today():
-    """今日の日付と曜日を返すツール（03 と同じ）"""
-    spark.sql(f"""
-    CREATE OR REPLACE FUNCTION {CATALOG}.{SCHEMA}.get_today()
-    RETURNS STRING
-    LANGUAGE PYTHON
-    COMMENT '今日の日付と曜日を返します（日本時間）。例：2026-12-14（月）'
-    AS $$
 from datetime import datetime, timedelta, timezone
-now = datetime.now(timezone(timedelta(hours=9)))
-return f"{{now:%Y-%m-%d}}（{{'月火水木金土日'[now.weekday()]}}）"
-    $$
-    """)
 
 
-def register_search_data(description):
-    """データの中から、言葉を含む行を探すツール。description がツールの説明として LLM に渡る"""
-    # データの1行を、見出しを付けた1つの文章にする。例：「日付：12/04、開始時刻：14:00、イベント名：写真部 作品展、場所：図書館 1F ギャラリー」
-    # この文章の中に探す言葉が含まれる行を返すので、どの列に書かれた言葉でも見つかる。返した文章は、そのまま LLM が読む
-    row_text = ", ".join(f"concat('{sql_text(h)}：', {c})" for h, c in zip(HEADERS, COLS))
-    spark.sql(f"""
-    CREATE OR REPLACE FUNCTION {CATALOG}.{SCHEMA}.search_data(
-      keyword STRING COMMENT '探す言葉'
-    )
-    RETURNS STRING
-    COMMENT '{sql_text(description)}'
-    RETURN (
-      SELECT concat_ws('\\n', collect_list(t.row_text))
-      FROM (SELECT concat_ws('、', {row_text}) AS row_text FROM {MY_TABLE}) t
-      WHERE t.row_text LIKE concat('%', search_data.keyword, '%')
-    )
-    """)
+def get_today():
+    """今日の日付と曜日を返す"""
+    now = datetime.now(timezone(timedelta(hours=9)))  # 日本時間
+    return f"{now:%Y-%m-%d}（{'月火水木金土日'[now.weekday()]}）"
 
 
-def tool_spec_from_uc(name):
-    """Unity Catalog に登録した関数の名前・説明・引数から、ツールの説明（JSON）を作る（03 と同じ）"""
-    f = w.functions.get(f"{CATALOG}.{SCHEMA}.{name}")
-    params = (f.input_params.parameters if f.input_params else None) or []
-    return {
-        "type": "function",
-        "function": {
-            "name": name,
-            "description": f.comment,
-            "parameters": {
-                "type": "object",
-                "properties": {p.name: {"type": "string", "description": p.comment or ""} for p in params},
-                "required": [p.name for p in params],
-            },
-        },
-    }
+def search_data(keyword):
+    """データの中から、keyword を含む行を返す。どの列に書かれた言葉でも見つかる"""
+    hits = [line for line in LINES if keyword in line]
+    return "\n".join(hits) if hits else "該当するデータはありません"
 
 
-def run_tool(name, args):
-    """Unity Catalog に登録した関数を、SQL から実行する（03 とほぼ同じ）"""
-    placeholders = ", ".join(f":{k}" for k in args)
-    try:
-        row = spark.sql(f"SELECT {CATALOG}.{SCHEMA}.{name}({placeholders}) AS r", args=args).first()
-    except Exception as e:
-        # エラーでも止めずに、エラーの内容を LLM に返す（トレースにも残る）
-        return f"ツールの実行でエラーになりました：{str(e).splitlines()[0]}"
-    return row.r if row.r else "該当するデータはありません"
+TOOLS = {"get_today": get_today, "search_data": search_data}
 
-
-register_get_today()
-register_search_data(TOOL_DESCRIPTION)
-
-# 動作確認：LLM に渡すツールの説明を表示する
-print(json.dumps([tool_spec_from_uc(n) for n in TOOL_NAMES], ensure_ascii=False, indent=2))
+print(get_today())
+print(search_data("図書館"))
 
 # COMMAND ----------
 
@@ -228,17 +164,33 @@ SYSTEM_PROMPT = f"あなたは{THEME}の案内係です。必要に応じてツ�
 
 # COMMAND ----------
 
+import mlflow
+
 mlflow.openai.autolog()  # LLM の呼び出しを自動で記録する
 
 
+def tool_specs():
+    """LLM に渡すツールの説明（JSON）。search_data の説明には、2. の TOOL_DESCRIPTION をそのまま使う"""
+    return [
+        {"type": "function", "function": {
+            "name": "get_today",
+            "description": "今日の日付と曜日を返します（日本時間）。例：2026-12-14（月）",
+            "parameters": {"type": "object", "properties": {}, "required": []}}},
+        {"type": "function", "function": {
+            "name": "search_data",
+            "description": TOOL_DESCRIPTION,
+            "parameters": {"type": "object",
+                           "properties": {"keyword": {"type": "string", "description": "探す言葉"}},
+                           "required": ["keyword"]}}},
+    ]
+
+
 @mlflow.trace(name="エージェントの実行")
-def run_agent(question, system_prompt=None, max_steps=8, verbose=True):
-    # 実行のたびに Unity Catalog からツールの説明を読み直す（7. でツールの説明を直したときに、そのまま反映される）
-    specs = [tool_spec_from_uc(n) for n in TOOL_NAMES]
-    messages = [{"role": "system", "content": system_prompt or SYSTEM_PROMPT}, {"role": "user", "content": question}]
+def run_agent(question, max_steps=8, verbose=True):
+    messages = [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": question}]
     for _ in range(max_steps):
-        # LLM が考える
-        reply = client.chat.completions.create(model=MODEL, messages=messages, tools=specs).choices[0].message
+        # LLM が考える（ツールの説明は、実行のたびに TOOL_DESCRIPTION から作り直す）
+        reply = client.chat.completions.create(model=MODEL, messages=messages, tools=tool_specs()).choices[0].message
         if not reply.tool_calls:  # 依頼がなければ、それが最終回答
             return reply.content
         # 依頼されたツールを実行して、結果を会話の記録に足す
@@ -247,7 +199,7 @@ def run_agent(question, system_prompt=None, max_steps=8, verbose=True):
             args = json.loads(call.function.arguments or "{}")
             with mlflow.start_span(name=f"ツール：{call.function.name}", span_type="TOOL") as span:
                 span.set_inputs(args)
-                result = run_tool(call.function.name, args)
+                result = TOOLS[call.function.name](**args)
                 span.set_outputs(result)
             if verbose:  # 結果の1行目だけを表示する
                 print(f"  [ツール] {call.function.name}({args}) → {result.splitlines()[0]} …")
@@ -261,7 +213,14 @@ def run_agent(question, system_prompt=None, max_steps=8, verbose=True):
 # MAGIC
 # MAGIC 自分の題材で、エージェントに聞いてみたい質問を書きます。ツールを2回以上使う質問を、1つは入れてください。
 # MAGIC
-# MAGIC 実行すると、質問ごとにトレースが表示されます。どのツールが、どの値で呼ばれ、何が返ったかを確かめてください。
+# MAGIC 実行すると、質問ごとにトレースが表示されます。トレースは、エージェントの中で起きたことを順番に記録したものです。左の一覧で `ツール：search_data` を選ぶと、右に入力（LLM が渡した言葉）と出力（ツールが返した結果）が出ます。
+# MAGIC
+# MAGIC 答えがおかしかったら、トレースを次の順に見ます（第2回の 7. でも同じ順で見ます）。
+# MAGIC
+# MAGIC 1. ツールは呼ばれたか
+# MAGIC 2. ツールに渡した言葉は、データの書き方と合っているか
+# MAGIC 3. LLM は、ツールの結果どおりに答えたか
+# MAGIC
 # MAGIC 正しく答えられない質問があってもかまいません。第2回で、原因を調べて直します。
 # MAGIC
 # MAGIC **宿題はここまでです。** 第2回までに、1〜4 を自分の題材に書き換えて、ここまで実行しておいてください。
@@ -376,7 +335,7 @@ result_v1.metrics
 # MAGIC 直し方：
 # MAGIC
 # MAGIC 1. 2. の `TOOL_DESCRIPTION` か 3. の `SYSTEM_PROMPT` の、どちらか1つを書き換えて、そのセルを実行し直す
-# MAGIC 2. 下のセルを実行する（直したのが1か所だけかを確かめて、ツールを登録し直す）
+# MAGIC 2. 下のセルを実行して、直したのが1か所だけかを確かめる
 # MAGIC
 # MAGIC 例の題材では ② に当てはまります。2. の `TOOL_DESCRIPTION` の最後に「日付は 12/04 のように、月と日を2桁の数字にして / でつないで書いています。」を書き足します。
 
@@ -389,7 +348,6 @@ if changed_tool and changed_prompt:
 if not (changed_tool or changed_prompt):
     raise ValueError("まだ何も直していません。2. のツールの説明か 3. のシステムプロンプトを書き換えて、そのセルを実行し直してください")
 
-register_search_data(TOOL_DESCRIPTION)  # ツールの説明を直した場合に、確実に登録し直す
 print("直したもの：", "ツールの説明" if changed_tool else "システムプロンプト")
 
 # COMMAND ----------
@@ -405,7 +363,7 @@ print("直したもの：", "ツールの説明" if changed_tool else "システ
 
 import pandas as pd
 
-# 直したツールの説明とシステムプロンプトで、6. と同じ評価をする
+# 直したツールの説明かシステムプロンプトで、6. と同じ評価をする
 with mlflow.start_run(run_name="v2：直した後"):
     result_v2 = mlflow.genai.evaluate(data=data, predict_fn=predict_fn, scorers=scorers)
 
