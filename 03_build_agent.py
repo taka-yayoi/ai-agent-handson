@@ -69,6 +69,16 @@ RETURN (
 # 動作確認：登録した関数を SQL から呼んでみる
 display(spark.sql(f"SELECT {CATALOG}.{SCHEMA}.get_today() AS today, {CATALOG}.{SCHEMA}.get_menu('月') AS menu"))
 
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### カタログ エクスプローラーで確かめる
+# MAGIC
+# MAGIC 左のメニューの **カタログ** → **workspace** → **agent_handson** → **機能** → **get_menu** を開きます。
+# MAGIC
+# MAGIC 「説明」に、上のセルで `COMMENT` に書いた文章が入っています。この説明が、そのまま LLM に渡るツールの説明になります。
+
 # COMMAND ----------
 
 # MAGIC %md-sandbox
