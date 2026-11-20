@@ -364,7 +364,7 @@ SYSTEM_PROMPT = SYSTEM_PROMPT_V1 + ADD_TO_SYSTEM_PROMPT
 # MAGIC
 # MAGIC 評価データと採点の観点は、6. と同じです。違うのは、7. で直した1か所だけです。
 # MAGIC
-# MAGIC 質問ごとの結果は、6. と 8. の「View evaluation results in MLflow」をそれぞれ開いて見比べます。直したかった質問が、v2 で「Pass」になったかを確かめてください。
+# MAGIC 実行したら「View evaluation results in MLflow」を押し、上の「Compare」で「v1：直す前」と「v2：直した後」を選ぶと、質問ごとに v1 と v2 の結果が並びます。直したかった質問が、Fail から Pass になったかを確かめてください。
 
 # COMMAND ----------
 
