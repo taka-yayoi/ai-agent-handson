@@ -113,7 +113,9 @@ display(spark.table(MY_TABLE).toDF(*HEADERS))
 # MAGIC
 # MAGIC このノートブックのツールは、「データの中から、言葉を含む行を探す」`search_data` の1つだけです。中身は用意してあるので、書くのは **ツールの説明** だけです。
 # MAGIC
-# MAGIC 03 で確かめたとおり、LLM はツールの説明を読んで、ツールを使うかどうかと、何を渡すかを決めます。データに何が入っているかを、1〜2文で書きます。
+# MAGIC LLM はデータそのものを見ていません。LLM がデータについて知る手がかりは、このツールの説明だけです。LLM は説明を読んで、ツールを使うかどうかと、どんな言葉を渡すかを決めます。データに何が入っているかを、1〜2文で書きます。
+# MAGIC
+# MAGIC ここに書いた文章は、Unity Catalog に登録する関数 `search_data` の説明（COMMENT）になり、エージェントを動かすたびに LLM に渡されます。
 # MAGIC
 # MAGIC ツールはもう1つ、今日の日付と曜日を返す `get_today` を持たせてあります。
 
@@ -124,7 +126,7 @@ TOOL_DESCRIPTION = "みどり大学の学内イベントの一覧から、指定
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC 下のセルで、ツールを Unity Catalog に登録します。読み飛ばしてかまいません。中身を見たい場合は、03 と同じく左のメニューの **カタログ** → **workspace** → **agent_handson** → **機能** → **search_data** を開くと、「説明」と「定義」が見られます。
+# MAGIC 下のセルで、ツールを Unity Catalog に登録します。読み飛ばしてかまいません。登録した結果は、左のメニューの **カタログ** → **workspace** → **agent_handson** → **機能** → **search_data** で見られます。「説明」の欄に、上の `TOOL_DESCRIPTION` の文章が入っています。
 
 # COMMAND ----------
 
@@ -156,7 +158,8 @@ return f"{{now:%Y-%m-%d}}（{{'月火水木金土日'[now.weekday()]}}）"
 
 def register_search_data(description):
     """データの中から、言葉を含む行を探すツール。description がツールの説明として LLM に渡る"""
-    # 1行を「日付：12/04、開始時刻：14:00、…」の形の文字列にする
+    # データの1行を、見出しを付けた1つの文章にする。例：「日付：12/04、開始時刻：14:00、イベント名：写真部 作品展、場所：図書館 1F ギャラリー」
+    # この文章の中に探す言葉が含まれる行を返すので、どの列に書かれた言葉でも見つかる。返した文章は、そのまま LLM が読む
     row_text = ", ".join(f"concat('{sql_text(h)}：', {c})" for h, c in zip(HEADERS, COLS))
     spark.sql(f"""
     CREATE OR REPLACE FUNCTION {CATALOG}.{SCHEMA}.search_data(
@@ -221,7 +224,7 @@ SYSTEM_PROMPT = f"あなたは{THEME}の案内係です。必要に応じてツ�
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC 下のセルで、エージェントのループを用意します。04 と同じです。読み飛ばしてかまいません。
+# MAGIC 下のセルで、エージェントのループ（LLM に聞く → 依頼されたツールを実行する → 結果を渡す、を答えが出るまで繰り返す）を用意します。読み飛ばしてかまいません。
 
 # COMMAND ----------
 
@@ -347,6 +350,10 @@ def predict_fn(question):
     return run_agent(question, verbose=False)
 
 
+# 8. で比べるために、直す前（v1）のツールの説明とシステムプロンプトを控えておく
+TOOL_DESCRIPTION_V1 = TOOL_DESCRIPTION
+SYSTEM_PROMPT_V1 = SYSTEM_PROMPT
+
 with mlflow.start_run(run_name="v1：直す前"):
     result_v1 = mlflow.genai.evaluate(data=data, predict_fn=predict_fn, scorers=scorers)
 
@@ -355,46 +362,35 @@ result_v1.metrics
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 7. 原因を調べて、1か所だけ直す【書き換える】
+# MAGIC ## 7. 原因を調べて、1か所だけ直す
 # MAGIC
-# MAGIC 上のセルの出力にある評価結果のリンクを開き、`Correctness` が「Fail」の質問のトレースを開いて、次を確かめます。
+# MAGIC 上のセルの出力にある評価結果のリンクを開き、`Correctness` が「Fail」の質問のトレースを開きます。
+# MAGIC トレースを次の表の上から順に見て、**最初に当てはまったところ** を直します。直すのは1か所だけです。2か所を同時に変えると、どちらが効いたのか分からなくなります。
 # MAGIC
-# MAGIC - `search_data` に、どんな言葉が渡されたか
-# MAGIC - それはデータの書き方と合っているか（例：データは「12/04」なのに「12月4日」が渡されていないか）
-# MAGIC - LLM は、ツールの結果どおりに答えたか
+# MAGIC | 順番 | トレースで見ること | こうなっていたら | 直すもの |
+# MAGIC |---|---|---|---|
+# MAGIC | ① | ツールは呼ばれたか | ツールを呼ばずに答えている | 3. のシステムプロンプトに「必ずツールで調べてから答える」と書き足す |
+# MAGIC | ② | ツールに渡した言葉は、データの書き方と合っているか | 合っていない（例：データは「12/04」なのに「12月4日」が渡されている） | 2. のツールの説明に、データの書き方を書き足す |
+# MAGIC | ③ | LLM は、ツールの結果どおりに答えたか | 結果にないことを答えている | 3. のシステムプロンプトに「ツールの結果だけを使って答える」と書き足す |
 # MAGIC
-# MAGIC 原因が分かったら、下のセルで A か B の **どちらか1つだけ** を直します。2つを同時に変えると、どちらが効いたのか分からなくなります。
+# MAGIC 直し方：
 # MAGIC
-# MAGIC | 候補 | 直すもの | こういう原因なら |
-# MAGIC |---|---|---|
-# MAGIC | A | ツールの説明 | ツールに渡す言葉の書き方が、データと合っていない |
-# MAGIC | B | システムプロンプト | ツールを使わずに推測で答えている、ツールの結果と違うことを答えている |
+# MAGIC 1. 2. の `TOOL_DESCRIPTION` か 3. の `SYSTEM_PROMPT` の、どちらか1つを書き換えて、そのセルを実行し直す
+# MAGIC 2. 下のセルを実行する（直したのが1か所だけかを確かめて、ツールを登録し直す）
 # MAGIC
-# MAGIC A か B のどちらか1つの `#` を外して、自分の題材に合わせて書き換えます。
+# MAGIC 例の題材では ② に当てはまります。2. の `TOOL_DESCRIPTION` の最後に「日付は 12/04 のように、月と日を2桁の数字にして / でつないで書いています。」を書き足します。
 
 # COMMAND ----------
 
-# v1 をコピーして v2 を作る（v1 は比べるために残す）
-TOOL_DESCRIPTION_V2 = TOOL_DESCRIPTION
-SYSTEM_PROMPT_V2 = SYSTEM_PROMPT
-
-# A：ツールの説明を直す（例の題材では、データの日付の書き方を伝える）
-# TOOL_DESCRIPTION_V2 = TOOL_DESCRIPTION + "日付は 12/04 のように、月と日を2桁の数字にして / でつないで書いています。"
-
-# B：システムプロンプトを直す
-# SYSTEM_PROMPT_V2 = SYSTEM_PROMPT + "ツールの結果だけを使って答え、推測で答えないでください。"
-
-# COMMAND ----------
-
-changed_tool = TOOL_DESCRIPTION_V2 != TOOL_DESCRIPTION
-changed_prompt = SYSTEM_PROMPT_V2 != SYSTEM_PROMPT
+changed_tool = TOOL_DESCRIPTION != TOOL_DESCRIPTION_V1
+changed_prompt = SYSTEM_PROMPT != SYSTEM_PROMPT_V1
 if changed_tool and changed_prompt:
-    raise ValueError("A と B の両方が変わっています。どちらか1つだけにしてください")
+    raise ValueError("ツールの説明とシステムプロンプトの両方が変わっています。どちらか1つだけにしてください")
 if not (changed_tool or changed_prompt):
-    raise ValueError("まだ何も直していません。上のセルで A か B の # を外してから実行してください")
+    raise ValueError("まだ何も直していません。2. のツールの説明か 3. のシステムプロンプトを書き換えて、そのセルを実行し直してください")
 
-register_search_data(TOOL_DESCRIPTION_V2)  # A の場合は、直した説明でツールを登録し直す
-print("直したもの：", "A（ツールの説明）" if changed_tool else "B（システムプロンプト）")
+register_search_data(TOOL_DESCRIPTION)  # ツールの説明を直した場合に、確実に登録し直す
+print("直したもの：", "ツールの説明" if changed_tool else "システムプロンプト")
 
 # COMMAND ----------
 
@@ -409,14 +405,9 @@ print("直したもの：", "A（ツールの説明）" if changed_tool else "B�
 
 import pandas as pd
 
-
-def predict_fn_v2(question):
-    """直した後のエージェントで回答する"""
-    return run_agent(question, system_prompt=SYSTEM_PROMPT_V2, verbose=False)
-
-
+# 直したツールの説明とシステムプロンプトで、6. と同じ評価をする
 with mlflow.start_run(run_name="v2：直した後"):
-    result_v2 = mlflow.genai.evaluate(data=data, predict_fn=predict_fn_v2, scorers=scorers)
+    result_v2 = mlflow.genai.evaluate(data=data, predict_fn=predict_fn, scorers=scorers)
 
 pd.DataFrame({"v1：直す前": result_v1.metrics, "v2：直した後": result_v2.metrics})
 
@@ -427,7 +418,7 @@ pd.DataFrame({"v1：直す前": result_v1.metrics, "v2：直した後": result_v
 # MAGIC
 # MAGIC - どんな題材のエージェントを作ったか
 # MAGIC - どの質問で、なぜ正しく答えられなかったか（トレースで分かったこと）
-# MAGIC - A と B のどちらを、なぜ直したか
+# MAGIC - 何を、なぜ直したか（7. の表のどれに当てはまったか）
 # MAGIC - 点数はどう変わったか。直したかった質問が、トレースの上で直ったか
 # MAGIC
 # MAGIC 同じ設定でも、評価のたびに点数は少し変わります。点数だけで判断せず、直したかった質問がトレースの上で直っているかも確かめてください。
